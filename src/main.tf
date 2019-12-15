@@ -104,11 +104,9 @@ resource "aws_cloudwatch_event_target" "lambda_target" {
 
 
 resource "aws_lambda_permission" "with_cloud_watch_event" {
-  for_each = "${aws_cloudwatch_event_target.lambda_target}"
-
   statement_id = "AllowExecutionFromCloudWatch"
   action = "lambda:InvokeFunction"
   function_name = "${aws_lambda_function.lambda.function_name}"
   principal = "events.amazonaws.com"
-  source_arn = "${each.value.arn}"
+  source_arn = "${aws_cloudwatch_event_rule.every_day_1030_am_est.arn}"
 }
