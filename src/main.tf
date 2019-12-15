@@ -7,3 +7,7 @@ provider "aws" {
 resource "aws_sns_topic" "sns" {
   name = "med-reminder-topic"
 }
+
+resource "aws_s3_bucket" "bucket" {
+  bucket = "med-reminder-lambdas"
+}
