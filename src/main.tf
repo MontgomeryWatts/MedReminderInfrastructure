@@ -4,19 +4,14 @@ provider "aws" {
   region  = "${var.aws_region}"
 }
 
+locals {
+  phone_numbers = "${toset([for job in var.jobs: job.phone_number])}"
+  # schedules = "${{for sch, job in var.jobs: sch => jsonencode(map("message", job.message, "phoneNumber", job.phone_number))}}"
+}
+
 resource "aws_sns_topic" "sns" {
   name = "med-reminder-topic"
 }
-
-resource "aws_sns_topic_subscription" "sms_subscription" {
-  for_each = "${toset(var.phone_numbers)}"
-
-  topic_arn = "${aws_sns_topic.sns.arn}"
-  protocol = "sms"
-  endpoint = "${each.value}"
-  filter_policy = "${jsonencode(map("endpoint", list(each.value)))}"
-}
-
 
 resource "aws_s3_bucket" "bucket" {
   bucket = "med-reminder-lambdas"
@@ -91,13 +86,28 @@ resource "aws_sns_topic_policy" "topic_policy" {
   policy = "${data.aws_iam_policy_document.topic_policy_document.json}"
 }
 
-resource "aws_cloudwatch_event_rule" "every_day_1030_am_est" {
+## Resources that depend on jobs below
+
+resource "aws_sns_topic_subscription" "sms_subscription" {
+  for_each = "${local.phone_numbers}"
+
+  topic_arn = "${aws_sns_topic.sns.arn}"
+  protocol = "sms"
+  endpoint = "${each.value}"
+  filter_policy = "${jsonencode(map("endpoint", list(each.value)))}"
+}
+
+resource "aws_cloudwatch_event_rule" "event_rule" {
+  #for_each = "${local.schedules}"
+  #schedule_expression = "${each.key}"
   schedule_expression = "cron(30 15 * * ? *)"
 }
 
 resource "aws_cloudwatch_event_target" "lambda_target" {
-  for_each = "${toset(var.phone_numbers)}"
-  rule = "${aws_cloudwatch_event_rule.every_day_1030_am_est.name}"
+  #for_each = "${local.schedules}"
+  for_each = "${local.phone_numbers}"
+
+  rule = "${aws_cloudwatch_event_rule.event_rule.name}"
   arn = "${aws_lambda_function.lambda.arn}"
   input = "${jsonencode(map("message", "Make sure you take your medicine!", "phoneNumber", each.value))}"
 }
@@ -108,5 +118,5 @@ resource "aws_lambda_permission" "with_cloud_watch_event" {
   action = "lambda:InvokeFunction"
   function_name = "${aws_lambda_function.lambda.function_name}"
   principal = "events.amazonaws.com"
-  source_arn = "${aws_cloudwatch_event_rule.every_day_1030_am_est.arn}"
+  source_arn = "${aws_cloudwatch_event_rule.event_rule.arn}"
 }
