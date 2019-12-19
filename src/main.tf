@@ -5,8 +5,8 @@ provider "aws" {
 }
 
 locals {
-  phone_numbers = "${toset([for job in var.jobs: job.phone_number])}"
-  schedules = "${distinct([for job in var.jobs: job.schedule])}"
+  phone_numbers = "${distinct([for job in var.jobs : job.phone_number])}"
+  schedules     = "${distinct([for job in var.jobs : job.schedule])}"
 }
 
 resource "aws_sns_topic" "sns" {
@@ -89,34 +89,34 @@ resource "aws_sns_topic_policy" "topic_policy" {
 ## Resources that depend on jobs below
 
 resource "aws_sns_topic_subscription" "sms_subscription" {
-  for_each = "${local.phone_numbers}"
+  count = "${length(local.phone_numbers)}"
 
-  topic_arn = "${aws_sns_topic.sns.arn}"
-  protocol = "sms"
-  endpoint = "${each.value}"
-  filter_policy = "${jsonencode(map("endpoint", list(each.value)))}"
+  topic_arn     = "${aws_sns_topic.sns.arn}"
+  protocol      = "sms"
+  endpoint      = "${element(local.phone_numbers, count.index)}"
+  filter_policy = "${jsonencode(map("endpoint", list(element(local.phone_numbers, count.index))))}"
 }
 
 resource "aws_cloudwatch_event_rule" "event_rule" {
-  count = "${length(local.schedules)}"
+  count               = "${length(local.schedules)}"
   schedule_expression = "${element(local.schedules, count.index)}"
-  name = "${sha256(element(local.schedules, count.index))}"
+  name                = "${sha256(element(local.schedules, count.index))}"
 }
 
 resource "aws_cloudwatch_event_target" "lambda_target" {
   depends_on = [aws_cloudwatch_event_rule.event_rule]
-  count = "${length(var.jobs)}"
+  count      = "${length(var.jobs)}"
 
-  rule = "${sha256(element(var.jobs, count.index).schedule)}"
-  arn = "${aws_lambda_function.lambda.arn}"
+  rule  = "${sha256(element(var.jobs, count.index).schedule)}"
+  arn   = "${aws_lambda_function.lambda.arn}"
   input = "${jsonencode(map("message", "${element(var.jobs, count.index).message}", "phoneNumber", "${element(var.jobs, count.index).phone_number}"))}"
 }
 
 
 resource "aws_lambda_permission" "with_cloud_watch_event" {
-  count = "${length(aws_cloudwatch_event_rule.event_rule)}"
-  action = "lambda:InvokeFunction"
+  count         = "${length(aws_cloudwatch_event_rule.event_rule)}"
+  action        = "lambda:InvokeFunction"
   function_name = "${aws_lambda_function.lambda.function_name}"
-  principal = "events.amazonaws.com"
-  source_arn = "${aws_cloudwatch_event_rule.event_rule[count.index].arn}"
+  principal     = "events.amazonaws.com"
+  source_arn    = "${aws_cloudwatch_event_rule.event_rule[count.index].arn}"
 }

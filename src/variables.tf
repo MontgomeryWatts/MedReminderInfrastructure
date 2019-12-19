@@ -5,6 +5,6 @@ variable "aws_region" {
 }
 
 variable "jobs" {
-  type = "list"
+  type        = "list"
   description = "A list of job objects specifying what notifications should be sent"
 }
