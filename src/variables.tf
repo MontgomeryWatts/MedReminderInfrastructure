@@ -4,7 +4,7 @@ variable "aws_region" {
   description = "The AWS region to provision resources in"
 }
 
-variable "phone_numbers" {
+variable "jobs" {
   type = "list"
-  description = "The phone numbers to subscribe to receive SMS messages"
+  description = "A list of job objects specifying what notifications should be sent"
 }
