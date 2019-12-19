@@ -6,7 +6,7 @@ provider "aws" {
 
 locals {
   phone_numbers = "${toset([for job in var.jobs: job.phone_number])}"
-  # schedules = "${{for sch, job in var.jobs: sch => jsonencode(map("message", job.message, "phoneNumber", job.phone_number))}}"
+  schedules = "${distinct([for job in var.jobs: job.schedule])}"
 }
 
 resource "aws_sns_topic" "sns" {
@@ -98,25 +98,25 @@ resource "aws_sns_topic_subscription" "sms_subscription" {
 }
 
 resource "aws_cloudwatch_event_rule" "event_rule" {
-  #for_each = "${local.schedules}"
-  #schedule_expression = "${each.key}"
-  schedule_expression = "cron(30 15 * * ? *)"
+  count = "${length(local.schedules)}"
+  schedule_expression = "${element(local.schedules, count.index)}"
+  name = "${sha256(element(local.schedules, count.index))}"
 }
 
 resource "aws_cloudwatch_event_target" "lambda_target" {
-  #for_each = "${local.schedules}"
-  for_each = "${local.phone_numbers}"
+  depends_on = [aws_cloudwatch_event_rule.event_rule]
+  count = "${length(var.jobs)}"
 
-  rule = "${aws_cloudwatch_event_rule.event_rule.name}"
+  rule = "${sha256(element(var.jobs, count.index).schedule)}"
   arn = "${aws_lambda_function.lambda.arn}"
-  input = "${jsonencode(map("message", "Make sure you take your medicine!", "phoneNumber", each.value))}"
+  input = "${jsonencode(map("message", "${element(var.jobs, count.index).message}", "phoneNumber", "${element(var.jobs, count.index).phone_number}"))}"
 }
 
 
 resource "aws_lambda_permission" "with_cloud_watch_event" {
-  statement_id = "AllowExecutionFromCloudWatch"
+  count = "${length(aws_cloudwatch_event_rule.event_rule)}"
   action = "lambda:InvokeFunction"
   function_name = "${aws_lambda_function.lambda.function_name}"
   principal = "events.amazonaws.com"
-  source_arn = "${aws_cloudwatch_event_rule.event_rule.arn}"
+  source_arn = "${aws_cloudwatch_event_rule.event_rule[count.index].arn}"
 }
